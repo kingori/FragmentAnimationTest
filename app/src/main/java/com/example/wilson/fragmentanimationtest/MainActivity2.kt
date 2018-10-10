@@ -29,21 +29,21 @@ class MainActivity2 : AppCompatActivity() {
     }
 
     fun showFragment(name: String) {
-
         val fm = supportFragmentManager
-        val f = ButtonFrag.newInstance(name, when (name) {
-            "A" -> Color.WHITE
-            "B" -> Color.BLUE
-            else -> Color.RED
-        })
-
+        var f = fm.findFragmentByTag(name)
+        if (f == null) {
+            f = ButtonFrag.newInstance(name, when (name) {
+                "A" -> Color.WHITE
+                "B" -> Color.BLUE
+                else -> Color.RED
+            })
+        }
         val transaction = fm.beginTransaction()
                 .setCustomAnimations(R.anim.fragment_in_2, R.anim.fragment_out_2)
                 .replace(R.id.vg_content, f, name)
                 .runOnCommit {
                     updateFragmentName()
                 }
-        vg_content.replaceFragment(fm, transaction)
         transaction.commitNowAllowingStateLoss()
     }
 
@@ -66,7 +66,7 @@ class MainActivity2 : AppCompatActivity() {
     }
 
     private fun updateFragmentName() {
-        val fragment = supportFragmentManager.findFragmentById(R.id.vg_content)
+        val fragment = supportFragmentManager.fragments.firstOrNull { it.isAdded && it.isVisible }
         val fragmentName = fragment?.let {
             it.arguments?.getString("name") ?: "null"
         } ?: "null"

@@ -1,12 +1,14 @@
 package com.example.wilson.fragmentanimationtest
 
 import android.annotation.TargetApi
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Canvas
 import android.os.Build
 import android.support.v4.app.Fragment
 import android.support.v4.app.FragmentManager
-import android.support.v4.app.FragmentTransaction
+import android.support.v7.app.AppCompatActivity
 import android.util.AttributeSet
 import android.view.View
 import android.widget.FrameLayout
@@ -20,21 +22,50 @@ class FragmentHostLayout : FrameLayout {
 
     private var transitionStarted = false
 
+    private val fragmentCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
+        override fun onFragmentAttached(fm: FragmentManager?, f: Fragment?, context: Context?) {
+            updateCurrentFragment()
+        }
+
+        override fun onFragmentDetached(fm: FragmentManager?, f: Fragment?) {
+            updateCurrentFragment()
+        }
+    }
+
     @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) : super(context, attrs, defStyleAttr)
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0, defStyleRes: Int = 0) : super(context, attrs, defStyleAttr, defStyleRes)
 
-    fun replaceFragment(fm: FragmentManager, transaction: FragmentTransaction) {
-        currentFragment = null
-        transaction.runOnCommit {
-            val fragment = fm.findFragmentById(id)
-            currentFragment = if (fragment != null) {
-                WeakReference(fragment)
-            } else {
-                null
+    fun updateCurrentFragment() {
+        val fragment = getSupportFragmentManager()?.fragments?.firstOrNull { it.id == id && it.isVisible && it.isAdded }
+        currentFragment = if (fragment == null) {
+            null
+        } else {
+            WeakReference(fragment)
+        }
+    }
+
+    private fun getSupportFragmentManager(): FragmentManager? {
+        fun getActivity(context: Context): AppCompatActivity? {
+            return when (context) {
+                is Activity -> context as? AppCompatActivity
+                is ContextWrapper -> getActivity(context.baseContext)
+                else -> null
             }
         }
+
+        return getActivity(context)?.supportFragmentManager
+    }
+
+    override fun onAttachedToWindow() {
+        getSupportFragmentManager()?.registerFragmentLifecycleCallbacks(fragmentCallback, false)
+        super.onAttachedToWindow()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        getSupportFragmentManager()?.unregisterFragmentLifecycleCallbacks(fragmentCallback)
     }
 
     override fun dispatchDraw(canvas: Canvas?) {
@@ -49,10 +80,10 @@ class FragmentHostLayout : FrameLayout {
             val curFragOp = drawingOps.find { it.child == curFragmentView }
             if (curFragOp != null) {
                 drawingOps.remove(curFragOp)
+                drawingOps.add(curFragOp)
                 drawingOps.forEach {
                     endViewTransition(it.child)
                 }
-                drawingOps.add(curFragOp)
             }
         }
 
